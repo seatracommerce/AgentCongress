@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom details/summary markers */
+details > summary {
+  list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary::before {
+  content: "▶";
+  font-size: 0.65rem;
+  margin-right: 0.4rem;
+  display: inline-block;
+  color: #9ca3af;
+  transition: transform 0.15s ease;
+}
+
+details[open] > summary::before {
+  transform: rotate(90deg);
+}
