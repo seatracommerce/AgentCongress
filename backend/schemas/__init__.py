@@ -1,5 +1,11 @@
 from backend.schemas.bill import BillSchema, BillDetailSchema
 from backend.schemas.debate import DebateSchema, DebateDetailSchema, StatementSchema, VoteSchema
+from backend.schemas.stats import (
+    ComparisonTotals,
+    DailyRealStat,
+    DailySimStat,
+    StatsResponse,
+)
 
 __all__ = [
     "BillSchema",
@@ -8,4 +14,8 @@ __all__ = [
     "DebateDetailSchema",
     "StatementSchema",
     "VoteSchema",
+    "DailySimStat",
+    "DailyRealStat",
+    "ComparisonTotals",
+    "StatsResponse",
 ]

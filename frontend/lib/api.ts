@@ -70,6 +70,34 @@ export interface PagedResponse<T> {
   items: T[];
 }
 
+export interface DailySimStat {
+  date: string;
+  total: number;
+  passed: number;
+  failed: number;
+}
+
+export interface DailyRealStat {
+  date: string;
+  total: number;
+  passed: number;
+  failed: number;
+}
+
+export interface ComparisonTotals {
+  both_passed: number;
+  both_failed: number;
+  sim_passed_real_failed: number;
+  sim_failed_real_passed: number;
+  no_real_vote: number;
+}
+
+export interface StatsResponse {
+  sim_daily: DailySimStat[];
+  real_daily: DailyRealStat[];
+  comparison: ComparisonTotals;
+}
+
 async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
@@ -84,3 +112,5 @@ export const fetchDebate = (id: number) =>
 
 export const fetchBill = (id: number) =>
   apiFetch<Bill>(`/bills/${id}`);
+
+export const fetchStats = () => apiFetch<StatsResponse>("/stats");

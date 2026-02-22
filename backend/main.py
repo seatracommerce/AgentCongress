@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.bills import router as bills_router
 from backend.api.debates import router as debates_router
 from backend.api.admin import router as admin_router
+from backend.api.stats import router as stats_router
 from backend.scheduler.tasks import start_scheduler, shutdown_scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -42,6 +43,7 @@ app.add_middleware(
 app.include_router(bills_router, prefix="/bills", tags=["bills"])
 app.include_router(debates_router, prefix="/debates", tags=["debates"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
+app.include_router(stats_router, prefix="/stats", tags=["stats"])
 
 
 @app.get("/health")

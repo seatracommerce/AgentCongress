@@ -19,6 +19,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="text-sm text-gray-500 ml-1">
               AI-simulated caucus debates on live legislation
             </span>
+            <nav className="ml-auto flex items-center gap-4 text-sm">
+              <a href="/" className="text-gray-600 hover:text-blue-700 font-medium">
+                Debates
+              </a>
+              <a href="/stats" className="text-gray-600 hover:text-blue-700 font-medium">
+                Stats
+              </a>
+            </nav>
           </div>
         </header>
         <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>

@@ -6,6 +6,7 @@ function formatDate(iso: string | null) {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
