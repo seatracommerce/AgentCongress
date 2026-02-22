@@ -95,7 +95,7 @@ async def test_run_debate_creates_statements_and_votes(db_session):
     assert debate.nay_seats is not None
     assert debate.present_seats is not None
     assert (debate.yea_seats + debate.nay_seats + debate.present_seats) == sum(
-        c.house_seats for c in CAUCUSES
+        c.seats for c in CAUCUSES
     )
 
     # Verify statements: 5 openings + 5*2 debate rounds + 5 closings = 25
