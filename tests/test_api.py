@@ -23,6 +23,11 @@ async def seed_bill(db_session, **kwargs) -> Bill:
         congress_number=119,
         importance_score=100.0,
         debate_triggered=True,
+        real_vote_result=None,
+        real_vote_yea=None,
+        real_vote_nay=None,
+        real_vote_date=None,
+        real_vote_description=None,
     )
     defaults.update(kwargs)
     bill = Bill(**defaults)
@@ -222,3 +227,87 @@ async def test_admin_trigger_debate_returns_200(client, db_session, mocker):
     resp = await client.post(f"/admin/trigger-debate/{bill.id}")
     assert resp.status_code == 200
     assert resp.json()["status"] == "triggered"
+
+
+# --- Real vote fields on bill responses ---
+
+@pytest.mark.asyncio
+async def test_bill_response_includes_real_vote_fields_null_by_default(client, db_session):
+    bill = await seed_bill(db_session, congress_bill_id="119-hr-700")
+    resp = await client.get(f"/bills/{bill.id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "real_vote_result" in data
+    assert data["real_vote_result"] is None
+    assert data["real_vote_yea"] is None
+    assert data["real_vote_nay"] is None
+    assert data["real_vote_date"] is None
+    assert data["real_vote_description"] is None
+
+
+@pytest.mark.asyncio
+async def test_bill_response_includes_real_vote_fields_when_set(client, db_session):
+    from datetime import datetime, timezone
+    bill = await seed_bill(
+        db_session,
+        congress_bill_id="119-hr-701",
+        real_vote_result="passed",
+        real_vote_yea=220,
+        real_vote_nay=210,
+        real_vote_date=datetime(2024, 3, 15, tzinfo=timezone.utc),
+        real_vote_description="Passed by the Yeas and Nays: 220 - 210",
+    )
+    resp = await client.get(f"/bills/{bill.id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["real_vote_result"] == "passed"
+    assert data["real_vote_yea"] == 220
+    assert data["real_vote_nay"] == 210
+    assert data["real_vote_description"] == "Passed by the Yeas and Nays: 220 - 210"
+
+
+# --- Admin refresh-vote endpoint ---
+
+@pytest.mark.asyncio
+async def test_admin_refresh_vote_not_found(client):
+    resp = await client.post("/admin/refresh-vote/99999")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_refresh_vote_missing_bill_type(client, db_session):
+    """Bills without bill_type should return 422."""
+    bill = await seed_bill(db_session, congress_bill_id="119-hr-800", bill_type=None)
+    resp = await client.post(f"/admin/refresh-vote/{bill.id}")
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_admin_refresh_vote_stores_result(client, db_session, mocker):
+    """When Congress.gov returns a floor vote, it's persisted and returned."""
+    from backend.services.bill_fetcher import _parse_vote_from_actions
+    bill = await seed_bill(db_session, congress_bill_id="119-hr-900")
+
+    mock_actions = [{"type": "Floor", "text": "Passed by voice vote", "actionDate": "2024-03-15"}]
+    mocker.patch("backend.services.bill_fetcher._fetch_bill_actions", return_value=mock_actions)
+
+    resp = await client.post(f"/admin/refresh-vote/{bill.id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["real_vote"] is not None
+    assert data["real_vote"]["result"] == "voice_vote_passed"
+
+    # Verify it was persisted
+    detail = await client.get(f"/bills/{bill.id}")
+    assert detail.json()["real_vote_result"] == "voice_vote_passed"
+
+
+@pytest.mark.asyncio
+async def test_admin_refresh_vote_no_floor_vote_found(client, db_session, mocker):
+    """When no floor vote is found in actions, real_vote is null in response."""
+    bill = await seed_bill(db_session, congress_bill_id="119-hr-901")
+    mocker.patch("backend.services.bill_fetcher._fetch_bill_actions", return_value=[])
+
+    resp = await client.post(f"/admin/refresh-vote/{bill.id}")
+    assert resp.status_code == 200
+    assert resp.json()["real_vote"] is None

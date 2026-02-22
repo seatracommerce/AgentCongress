@@ -8,7 +8,7 @@ import pytest
 from backend.services.bill_ranker import score_bill, rank_bills, DEBATE_THRESHOLD
 
 
-def make_bill(action: str, debate_triggered: bool = False):
+def make_bill(action: str, debate_triggered: bool = False, real_vote_result: str | None = None):
     """Use SimpleNamespace — avoids SQLAlchemy instrumentation in unit tests."""
     return SimpleNamespace(
         congress_bill_id="119-hr-1",
@@ -16,6 +16,7 @@ def make_bill(action: str, debate_triggered: bool = False):
         last_action_text=action,
         importance_score=0.0,
         debate_triggered=debate_triggered,
+        real_vote_result=real_vote_result,
     )
 
 
@@ -75,3 +76,38 @@ def test_rank_bills_updates_importance_score():
     bill = make_bill("Ordered to be reported by committee")
     rank_bills([bill])
     assert bill.importance_score >= DEBATE_THRESHOLD
+
+
+# --- Case 2: bills with real vote qualify regardless of score ---
+
+def test_rank_bills_qualifies_bill_with_real_vote_and_low_score():
+    """A bill with real_vote_result but score < threshold must still be included."""
+    bill = make_bill("Enrolled; signed by the President", real_vote_result="passed")
+    candidates = rank_bills([bill])
+    assert bill in candidates
+
+
+def test_rank_bills_qualifies_bill_with_real_vote_failed():
+    bill = make_bill("Referred to committee", real_vote_result="failed")
+    candidates = rank_bills([bill])
+    assert bill in candidates
+
+
+def test_rank_bills_qualifies_bill_with_voice_vote():
+    bill = make_bill("Referred to committee", real_vote_result="voice_vote_passed")
+    candidates = rank_bills([bill])
+    assert bill in candidates
+
+
+def test_rank_bills_skips_real_vote_if_already_triggered():
+    """debate_triggered=True must block even if real vote is present."""
+    bill = make_bill("Referred to committee", debate_triggered=True, real_vote_result="passed")
+    candidates = rank_bills([bill])
+    assert candidates == []
+
+
+def test_rank_bills_no_real_vote_and_low_score_excluded():
+    """Bills without real vote and below threshold must not qualify."""
+    bill = make_bill("Referred to committee", real_vote_result=None)
+    candidates = rank_bills([bill])
+    assert candidates == []
