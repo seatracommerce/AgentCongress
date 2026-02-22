@@ -21,8 +21,8 @@ const CHOICE_STYLE = {
   present: "bg-gray-100 text-gray-600 border border-gray-300",
 };
 
-// Parliament arc chart helpers
-const CX = 100, CY = 100, OUTER_R = 85, INNER_R = 57;
+// Parliament arc chart helpers (viewport 200×105, semicircle center at bottom)
+const CX = 100, CY = 105, OUTER_R = 90, INNER_R = 62;
 
 function toRad(deg: number) {
   return (deg * Math.PI) / 180;
@@ -113,7 +113,7 @@ export default function VoteBoard({ votes, yea_seats, nay_seats, present_seats, 
       {/* Parliament arc chart */}
       {total > 0 && (
         <svg
-          viewBox="0 0 200 118"
+          viewBox="0 0 200 105"
           className="w-full max-w-[200px] mx-auto mb-5 block"
           aria-label="Parliament vote chart"
         >
@@ -150,14 +150,14 @@ export default function VoteBoard({ votes, yea_seats, nay_seats, present_seats, 
             fill="#6B7280"
             dominantBaseline="middle"
           >
-            pass
+            pass line
           </text>
 
           {/* Seat count labels */}
-          <text x="5" y="113" fontSize="8" fill="#15803D" fontWeight="600">
+          <text x="5" y="102" fontSize="8" fill="#15803D" fontWeight="600">
             {yea_seats} YEA
           </text>
-          <text x="195" y="113" textAnchor="end" fontSize="8" fill="#DC2626" fontWeight="600">
+          <text x="195" y="102" textAnchor="end" fontSize="8" fill="#DC2626" fontWeight="600">
             {nay_seats} NAY
           </text>
         </svg>

@@ -31,6 +31,14 @@ docker compose up --build
 docker compose exec backend alembic upgrade head
 ```
 
+## Git Workflow
+After completing any feature, fix, or meaningful unit of work:
+1. Run `git add -A`
+2. Write a descriptive commit message following conventional commits (feat:, fix:, chore: etc.)
+3. Run `git commit -m "..."`
+
+Never leave completed work uncommitted.
+
 ## Architecture decisions
 
 - **Alembic migrations** live in `backend/alembic/`, config at `alembic.ini` (project root)
