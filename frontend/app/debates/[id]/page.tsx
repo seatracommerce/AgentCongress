@@ -4,6 +4,7 @@ import StatementBubble from "@/components/StatementBubble";
 import VoteBoard from "@/components/VoteBoard";
 import BillSummary from "@/components/BillSummary";
 import PositionMatrix from "@/components/PositionMatrix";
+import RealWorldVote from "@/components/RealWorldVote";
 
 export const revalidate = 60;
 
@@ -89,6 +90,10 @@ export default async function DebatePage({ params }: Props) {
               present_seats={debate.present_seats ?? 0}
               result={debate.result ?? "unknown"}
             />
+          )}
+
+          {bill && (
+            <RealWorldVote bill={bill} simulationResult={debate.result} />
           )}
 
           {debate.summary && (

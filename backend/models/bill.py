@@ -24,6 +24,11 @@ class Bill(Base):
     last_action_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_action_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     congress_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    real_vote_result: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    real_vote_yea: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    real_vote_nay: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    real_vote_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    real_vote_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     importance_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     debate_triggered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

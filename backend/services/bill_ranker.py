@@ -77,12 +77,14 @@ def rank_bills(bills: list[Bill]) -> list[Bill]:
         score = score_bill(bill)
         bill.importance_score = score
 
-        if score >= DEBATE_THRESHOLD and not bill.debate_triggered:
+        has_real_vote = bill.real_vote_result is not None
+        if (score >= DEBATE_THRESHOLD or has_real_vote) and not bill.debate_triggered:
             debate_candidates.append(bill)
             logger.info(
-                "Bill %s qualifies for debate (score=%.0f, action=%r)",
+                "Bill %s qualifies for debate (score=%.0f, real_vote=%s, action=%r)",
                 bill.congress_bill_id,
                 score,
+                bill.real_vote_result,
                 bill.last_action_text,
             )
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -92,6 +93,10 @@ async def _upsert_bill(
 
     summary = await _fetch_bill_summary(client, congress, bill_type, number, api_key)
 
+    # Real-world vote — fetch actions and parse floor vote if present
+    actions = await _fetch_bill_actions(client, congress, bill_type, number, api_key)
+    vote_info = _parse_vote_from_actions(actions)
+
     # Congress.gov URL — prefer explicit field, fall back to constructing it
     congress_url = (
         detail.get("congressDotGovUrl")
@@ -119,6 +124,12 @@ async def _upsert_bill(
         existing.last_action_text = last_action_text
         existing.introduced_date = introduced_date
         existing.congress_url = congress_url
+        if vote_info:
+            existing.real_vote_result = vote_info["result"]
+            existing.real_vote_yea = vote_info.get("yea")
+            existing.real_vote_nay = vote_info.get("nay")
+            existing.real_vote_date = vote_info.get("date")
+            existing.real_vote_description = vote_info.get("description")
         if action_changed:
             logger.info("Bill %s has new action: %s", congress_bill_id, last_action_text)
         return existing
@@ -136,6 +147,11 @@ async def _upsert_bill(
             last_action_date=last_action_date,
             last_action_text=last_action_text,
             congress_url=congress_url,
+            real_vote_result=vote_info["result"] if vote_info else None,
+            real_vote_yea=vote_info.get("yea") if vote_info else None,
+            real_vote_nay=vote_info.get("nay") if vote_info else None,
+            real_vote_date=vote_info.get("date") if vote_info else None,
+            real_vote_description=vote_info.get("description") if vote_info else None,
         )
         db.add(bill)
         return bill
@@ -179,6 +195,78 @@ async def _fetch_bill_summary(
         return None
     except httpx.HTTPError:
         return None
+
+
+async def _fetch_bill_actions(
+    client: httpx.AsyncClient,
+    congress: str,
+    bill_type: str,
+    number: str,
+    api_key: str,
+) -> list[dict]:
+    """Fetch the actions list for a bill from Congress.gov."""
+    try:
+        resp = await client.get(
+            f"{CONGRESS_API_BASE}/bill/{congress}/{bill_type}/{number}/actions",
+            params={"api_key": api_key, "format": "json", "limit": 50},
+        )
+        resp.raise_for_status()
+        return resp.json().get("actions", [])
+    except httpx.HTTPError as exc:
+        logger.warning("Could not fetch actions for %s/%s/%s: %s", congress, bill_type, number, exc)
+        return []
+
+
+# Regex patterns for parsing floor vote results
+_HOUSE_RC = re.compile(
+    r"(passed|failed|agreed to|rejected).*?yeas and nays[:\s]+(\d+)\s*[-\u2013]\s*(\d+)",
+    re.IGNORECASE | re.DOTALL,
+)
+_SENATE_RC = re.compile(
+    r"(passed|failed|agreed to|rejected).*?yea-nay vote[.\s]+(\d+)\s*[-\u2013]\s*(\d+)",
+    re.IGNORECASE | re.DOTALL,
+)
+_VOICE_FAIL = re.compile(
+    r"failed(?:.*?(?:voice vote|without objection|unanimous consent))",
+    re.IGNORECASE | re.DOTALL,
+)
+_VOICE_PASS = re.compile(
+    r"(passed|agreed to)(?:.*?(?:without objection|unanimous consent|voice vote))",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _parse_vote_from_actions(actions: list[dict]) -> dict | None:
+    """Scan actions newest-first and return the first floor vote found, or None."""
+    for action in actions:
+        if action.get("type") != "Floor":
+            continue
+        text = action.get("text", "")
+        action_date = _parse_date(action.get("actionDate"))
+
+        # Roll-call: House
+        m = _HOUSE_RC.search(text)
+        if m:
+            verb = m.group(1).lower()
+            yea, nay = int(m.group(2)), int(m.group(3))
+            result = "passed" if verb in ("passed", "agreed to") else "failed"
+            return {"result": result, "yea": yea, "nay": nay, "date": action_date, "description": text}
+
+        # Roll-call: Senate
+        m = _SENATE_RC.search(text)
+        if m:
+            verb = m.group(1).lower()
+            yea, nay = int(m.group(2)), int(m.group(3))
+            result = "passed" if verb in ("passed", "agreed to") else "failed"
+            return {"result": result, "yea": yea, "nay": nay, "date": action_date, "description": text}
+
+        # Voice vote — check fail before pass to avoid mis-matching "failed...voice vote"
+        if _VOICE_FAIL.search(text):
+            return {"result": "voice_vote_failed", "yea": None, "nay": None, "date": action_date, "description": text}
+        if _VOICE_PASS.search(text):
+            return {"result": "voice_vote_passed", "yea": None, "nay": None, "date": action_date, "description": text}
+
+    return None
 
 
 def _build_congress_url(congress: str, bill_type: str, number: str) -> str:

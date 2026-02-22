@@ -13,6 +13,11 @@ export interface Bill {
   last_action_date: string | null;
   last_action_text: string | null;
   congress_url: string | null;
+  real_vote_result: string | null;
+  real_vote_yea: number | null;
+  real_vote_nay: number | null;
+  real_vote_date: string | null;
+  real_vote_description: string | null;
   importance_score: number;
   debate_triggered: boolean;
   created_at: string;

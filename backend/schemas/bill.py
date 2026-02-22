@@ -20,6 +20,11 @@ class BillSchema(BaseModel):
     last_action_date: datetime | None
     last_action_text: str | None
     congress_url: str | None
+    real_vote_result: str | None = None
+    real_vote_yea: int | None = None
+    real_vote_nay: int | None = None
+    real_vote_date: datetime | None = None
+    real_vote_description: str | None = None
     importance_score: float
     debate_triggered: bool
     created_at: datetime
