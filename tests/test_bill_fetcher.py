@@ -164,3 +164,14 @@ def test_description_is_raw_action_text():
     actions = [make_action(text)]
     result = _parse_vote_from_actions(actions)
     assert result["description"] == text
+
+
+def test_house_rollcall_with_supermajority_annotation():
+    """Handles 'Yeas and Nays: (2/3 required): 413 - 0' format."""
+    text = "On motion to suspend the rules and pass the bill, as amended Agreed to by the Yeas and Nays: (2/3 required): 413 - 0 (Roll no. 47)."
+    actions = [make_action(text)]
+    result = _parse_vote_from_actions(actions)
+    assert result is not None
+    assert result["result"] == "passed"
+    assert result["yea"] == 413
+    assert result["nay"] == 0

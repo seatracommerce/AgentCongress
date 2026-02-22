@@ -16,7 +16,7 @@ class Bill(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     chamber: Mapped[str | None] = mapped_column(String(16), nullable=True)  # House / Senate
-    status: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    status: Mapped[str | None] = mapped_column(Text, nullable=True)
     sponsor: Mapped[str | None] = mapped_column(String(256), nullable=True)
     bill_type: Mapped[str | None] = mapped_column(String(16), nullable=True)  # hr, s, hjres, etc.
     congress_number: Mapped[int | None] = mapped_column(Integer, nullable=True)

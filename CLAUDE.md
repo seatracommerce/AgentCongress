@@ -39,6 +39,15 @@ After completing any feature, fix, or meaningful unit of work:
 
 Never leave completed work uncommitted.
 
+## Debug Knowledge
+When you solve a difficult bug, append the problem + solution to `docs/debug-learnings.md` 
+in this format:
+- **Problem**: [description]
+- **Symptoms**: [error messages, behavior]
+- **Root cause**: [what actually caused it]
+- **Solution**: [what fixed it]
+- **Date**: [when]
+
 ## Architecture decisions
 
 - **Alembic migrations** live in `backend/alembic/`, config at `alembic.ini` (project root)

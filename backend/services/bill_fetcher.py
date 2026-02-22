@@ -219,7 +219,7 @@ async def _fetch_bill_actions(
 
 # Regex patterns for parsing floor vote results
 _HOUSE_RC = re.compile(
-    r"(passed|failed|agreed to|rejected).*?yeas and nays[:\s]+(\d+)\s*[-\u2013]\s*(\d+)",
+    r"(passed|failed|agreed to|rejected).*?yeas and nays[:\s]*(?:\([^)]+\)[:\s]*)?(\d+)\s*[-\u2013]\s*(\d+)",
     re.IGNORECASE | re.DOTALL,
 )
 _SENATE_RC = re.compile(
