@@ -18,8 +18,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from backend.config import get_settings
     logger.info("Starting AgentCongress API")
-    start_scheduler()
+    if not get_settings().disable_scheduler:
+        start_scheduler()
+    else:
+        logger.info("In-process scheduler disabled (use Cloud Scheduler + POST /admin/trigger-poll)")
     yield
     logger.info("Shutting down AgentCongress API")
     await shutdown_scheduler()
@@ -48,4 +52,23 @@ app.include_router(stats_router, prefix="/stats", tags=["stats"])
 
 @app.get("/health")
 async def health_check():
+    """Liveness: app is running. No dependency checks."""
     return {"status": "ok"}
+
+
+@app.get("/ready")
+async def ready_check():
+    """Readiness: app can serve traffic. Checks DB connectivity (e.g. Neon)."""
+    from sqlalchemy import text
+    from backend.database import engine
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"status": "ok", "checks": {"database": "ok"}}
+    except Exception as e:
+        logger.exception("Ready check failed")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "checks": {"database": "fail"}, "detail": str(e)},
+        )

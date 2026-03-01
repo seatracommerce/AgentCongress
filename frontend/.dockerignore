@@ -1,0 +1,7 @@
+# Avoid overwriting node_modules from the deps stage; keep build context small
+node_modules
+.next
+.git
+*.md
+.env*.local
+.dockerignore

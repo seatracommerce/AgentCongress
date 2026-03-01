@@ -5,6 +5,7 @@ import VoteBoard from "@/components/VoteBoard";
 import BillSummary from "@/components/BillSummary";
 import RealWorldVote from "@/components/RealWorldVote";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 60;
 
 interface Props {

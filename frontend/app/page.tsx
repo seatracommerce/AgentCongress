@@ -1,6 +1,7 @@
 import { fetchDebates, fetchBill, type Debate, type Bill } from "@/lib/api";
 import DebateCard from "@/components/DebateCard";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 60;
 
 async function getDebatesWithBills(): Promise<Array<{ debate: Debate; bill: Bill | null }>> {

@@ -1,6 +1,7 @@
 import { fetchStats } from "@/lib/api";
 import type { DailySimStat, DailyRealStat } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 60;
 
 function formatChartDate(d: string) {

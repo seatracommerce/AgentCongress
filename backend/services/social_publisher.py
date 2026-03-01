@@ -8,22 +8,29 @@ import tweepy
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.agents.caucuses import ALL_CAUCUSES_BY_ID
 from backend.config import get_settings
 from backend.models.debate import Debate, Vote
 
 logger = logging.getLogger(__name__)
 
 RESULT_EMOJI = {"passed": "✅", "failed": "❌"}
+CHOICE_EMOJI = {"yea": "✅", "nay": "❌", "present": "⚪"}
 
-# Caucus groupings for tweet thread by chamber
-_HOUSE_LEFT = ["progressive", "new_dem"]
-_HOUSE_RIGHT = ["rsc", "freedom"]
-_HOUSE_CENTER = "problem_solvers"
-
-_SENATE_LEFT = ["senate_progressive", "senate_dem"]
-_SENATE_RIGHT = ["senate_gop", "senate_conservative"]
-_SENATE_CENTER = "senate_bipartisan"
+# Short display names for tweet caucus line
+_CAUCUS_SHORT = {
+    "progressive": "Prog.",
+    "new_dem": "NewDem",
+    "rsc": "RSC",
+    "freedom": "Freedom",
+    "problem_solvers": "PS",
+    "cbc": "CBC",
+    "armed_services": "ArmedSvc",
+    "senate_progressive": "S.Prog.",
+    "senate_dem": "S.Dem",
+    "senate_gop": "S.GOP",
+    "senate_conservative": "S.Cons.",
+    "senate_bipartisan": "S.Bip.",
+}
 
 
 def _make_tweepy_client(settings) -> tweepy.Client:
@@ -41,28 +48,6 @@ def _truncate(text: str, limit: int = 200) -> str:
     return text[: limit - 1] + "\u2026"
 
 
-def _format_vote_line(votes: list[Vote]) -> str:
-    yea = sum(v.weighted_seats for v in votes if v.choice == "yea")
-    nay = sum(v.weighted_seats for v in votes if v.choice == "nay")
-    present = sum(v.weighted_seats for v in votes if v.choice == "present")
-    return f"{yea}-{nay}" + (f"-{present}" if present else "")
-
-
-def _get_caucus_excerpt(
-    votes: list[Vote],
-    caucus_ids: list[str],
-    statements_by_caucus: dict[str, str],
-) -> str:
-    parts = []
-    for cid in caucus_ids:
-        caucus = ALL_CAUCUSES_BY_ID.get(cid)
-        if not caucus:
-            continue
-        vote = next((v for v in votes if v.caucus_id == cid), None)
-        choice_str = f"({vote.choice.upper()})" if vote else ""
-        excerpt = _truncate(statements_by_caucus.get(cid, ""), 180)
-        parts.append(f"{caucus.display_name} {choice_str}: {excerpt}")
-    return "\n\n".join(parts)
 
 
 async def publish_debate(db: AsyncSession, debate: Debate) -> bool:
@@ -85,78 +70,33 @@ async def publish_debate(db: AsyncSession, debate: Debate) -> bool:
         logger.error("Bill not found for debate %d", debate.id)
         return False
 
-    from backend.models.statement import Statement
-
-    stmt_result = await db.execute(
-        select(Statement)
-        .where(Statement.debate_id == debate.id, Statement.turn_type == "closing")
-        .order_by(Statement.sequence)
-    )
-    closing_statements = stmt_result.scalars().all()
-    statements_by_caucus = {s.caucus_id: s.content for s in closing_statements}
-
     votes = list(debate.votes) if debate.votes else []
     result = debate.result or "unknown"
     result_emoji = RESULT_EMOJI.get(result, "\U0001f5f3\ufe0f")
-    vote_line = _format_vote_line(votes)
-
-    # Determine chamber-appropriate caucus groupings
-    chamber = getattr(debate, "chamber", None) or "House"
-    if chamber == "Senate":
-        left_ids, right_ids, center_id = _SENATE_LEFT, _SENATE_RIGHT, _SENATE_CENTER
-        chamber_label = "Senate"
-    else:
-        left_ids, right_ids, center_id = _HOUSE_LEFT, _HOUSE_RIGHT, _HOUSE_CENTER
-        chamber_label = "House"
 
     yea = debate.yea_seats or 0
     nay = debate.nay_seats or 0
     present = debate.present_seats or 0
-    total_seats = yea + nay + present
-    vote_threshold = total_seats // 2 + 1
 
-    thread: list[str] = []
+    # Build compact caucus votes line: "Prog. ✅ · NewDem ✅ · RSC ❌ · Freedom ❌ · PS ✅"
+    caucus_parts = []
+    for v in sorted(votes, key=lambda v: v.weighted_seats, reverse=True):
+        short = _CAUCUS_SHORT.get(v.caucus_id, v.caucus_id)
+        emoji = CHOICE_EMOJI.get(v.choice, "?")
+        caucus_parts.append(f"{short} {emoji}")
+    caucus_line = " · ".join(caucus_parts)
 
-    # Tweet 1: Headline
-    thread.append(
-        f"\U0001f3db\ufe0f AgentCongress debated: {_truncate(bill.title, 180)}\n\n"
-        f"Result: {result_emoji} {result.upper()} ({vote_line} seats)\n\n"
-        f"Here's what happened \U0001f9f5\U0001f447"
-    )
-
-    # Tweet 2: Left flank
-    left_block = _get_caucus_excerpt(votes, left_ids, statements_by_caucus)
-    if left_block:
-        thread.append(f"\u2b05\ufe0f {chamber_label} left flank:\n\n{left_block}")
-
-    # Tweet 3: Right flank
-    right_block = _get_caucus_excerpt(votes, right_ids, statements_by_caucus)
-    if right_block:
-        thread.append(f"\u27a1\ufe0f {chamber_label} right flank:\n\n{right_block}")
-
-    # Tweet 4: Center/bipartisan + final tally
-    center_vote = next((v for v in votes if v.caucus_id == center_id), None)
-    center_caucus = ALL_CAUCUSES_BY_ID.get(center_id)
-    center_name = center_caucus.display_name if center_caucus else center_id
-    center_choice = center_vote.choice.upper() if center_vote else "?"
-    center_excerpt = _truncate(statements_by_caucus.get(center_id, ""), 180)
-
-    thread.append(
-        f"\U0001f91d {center_name} voted {center_choice}: {center_excerpt}\n\n"
-        f"Final tally:\n"
-        f"\u2705 YEA: {yea} seats\n"
-        f"\u274c NAY: {nay} seats\n"
-        f"\u26aa PRESENT: {present} seats\n\n"
-        f"Threshold to pass: {vote_threshold} seats\n"
-        f"\u2192 {result_emoji} {result.upper()}"
-    )
-
-    # Tweet 5: Link
-    thread.append(
-        f"\U0001f4d6 Read the full debate transcript, vote breakdown, and agent reasoning:\n"
-        f"{settings.webapp_url}/debates/{debate.id}\n\n"
+    tweet = (
+        f"🏛️ AgentCongress: {_truncate(bill.title, 100)}\n\n"
+        f"{result_emoji} {result.upper()} · {yea} yea / {nay} nay"
+        + (f" / {present} present" if present else "")
+        + f"\n\n{caucus_line}\n\n"
+        f"Full transcript & vote breakdown 👇\n"
+        f"{settings.webapp_url}/debates/{debate.id}\n"
         f"#Congress #AI #AgentCongress"
     )
+
+    thread: list[str] = [tweet]
 
     if settings.dry_run:
         logger.info("DRY_RUN=true — would post %d-tweet thread:", len(thread))
@@ -170,14 +110,9 @@ async def publish_debate(db: AsyncSession, debate: Debate) -> bool:
     # Post live thread
     client = _make_tweepy_client(settings)
     try:
-        previous_id: int | None = None
         for tweet_text in thread:
-            if previous_id:
-                response = client.create_tweet(text=tweet_text, in_reply_to_tweet_id=previous_id)
-            else:
-                response = client.create_tweet(text=tweet_text)
-            previous_id = response.data["id"]
-            logger.info("Posted tweet ID %s", previous_id)
+            response = client.create_tweet(text=tweet_text)
+            logger.info("Posted tweet ID %s", response.data["id"])
 
         debate.published_to_x_at = datetime.now(tz=timezone.utc)
         await db.commit()

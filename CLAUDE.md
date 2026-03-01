@@ -48,6 +48,18 @@ in this format:
 - **Solution**: [what fixed it]
 - **Date**: [when]
 
+## Long-running tasks
+
+These operations can take minutes; set timeouts and capacity accordingly (e.g. Cloud Run request timeout ≥ 15 min).
+
+| Task | Where | Why |
+|------|--------|-----|
+| **fetch_recent_bills()** | `bill_fetcher.py` | Up to 50 bills × 3 Congress.gov calls each (detail, summaries, actions); sequential. Can be 2–5+ min. |
+| **run_debate()** | `debate_engine.py` | 5–7 agents × (1 opening + 2× debate + 1 closing) = 20–28 Claude API calls per bill; sequential. ~1–5 min per debate. |
+| **POST /admin/trigger-poll** | `admin.py` → `poll_bill_actions` | Runs fetch_recent_bills + rank + one run_debate() per qualifying bill. Total = fetch time + N × debate time (N = 0 to dozens). |
+
+Short tasks: `rank_and_flag_bills`, `publish_debate` (Tweepy), DB reads/writes.
+
 ## Architecture decisions
 
 - **Alembic migrations** live in `backend/alembic/`, config at `alembic.ini` (project root)
@@ -55,6 +67,7 @@ in this format:
 - **DRY_RUN=true**: social publisher logs tweet thread to stdout without posting to X
 - **Debate structure**: opening (randomized order) → 2 debate rounds → closing + VOTE declaration parsed with regex
 - **GCP secrets**: `config.py` reads from GCP Secret Manager when `ENV=production`; otherwise from `.env`
+- **Cloud Tasks (optional)**: When `SERVICE_URL` and `CLOUD_TASKS_*` are set, `POST /admin/schedule-poll` enqueues a poll task; the worker `POST /admin/tasks/poll` fetches/ranks and enqueues one task per bill to `POST /admin/tasks/debate`. Keeps each Cloud Run request short and enables per-debate retries.
 
 ## File map
 
